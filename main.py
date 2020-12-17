@@ -9,12 +9,12 @@ import warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
 # %% %%
 data_all = pd.read_csv('./energy_records_history.csv')
-for id in data_all['id'].unique():
-    df = data_all[data_all['id']==id]
-    df['timeFrom'] = pd.to_datetime(df['timeFrom'])
-    print(id)
-    plt.plot(df['timeFrom'],df['energyKwh'])
-    plt.show()
+#for id in data_all['id'].unique():
+#    df = data_all[data_all['id']==id]
+#    df['timeFrom'] = pd.to_datetime(df['timeFrom'])
+#    print(id)
+#    plt.plot(df['timeFrom'],df['energyKwh'])
+#    plt.show()
 
 # %% %%
 id = 150150
@@ -68,19 +68,18 @@ WWW['w2'].idxmin()
 WWW[['w1','w2','w3']].mean(axis=1).idxmin()
 # %% %%
 xxx=0
-data['y'] = data['y'].values-restored
+data['y'] = data['y'].values#-restored
 PR = PeriodicRegression()
-PR.fit(data[xxx:], top_n = 1000, cv=0.1)
-PR.plot_spectrum(log = False)
-
+PR.fit(data[xxx:], top_n = 10, cv=0.1)
+#PR.plot_spectrum(log = False)
 restored = PR.predict(np.arange(xxx,len(data)))
 
 plt.plot(np.arange(0,len(data)),data['y'])
 plt.plot(np.arange(0,len(data)),restored, alpha = 0.75)
-#plt.xlim(40000,50000)
+plt.xlim(20000,30000)
 plt.show()
 
 functions.MAE(data['y'].values[xxx:],restored)
 plt.plot(np.arange(0,len(data)),data['y'])
 plt.plot(data['y'].values-restored)
-plt.xlim(10000,20000)
+#plt.xlim(10000,12000)

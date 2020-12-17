@@ -2,11 +2,19 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.signal import find_peaks, peak_widths
-
+from sklearn.metrics import mean_absolute_error as MAE
 
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
+
 # %% %%
+# Preparations
+# %% %%
+
+def data_init(df, date_format="%Y-%m-%d %H:%M:%S"):
+    df['dt'] = pd.to_datetime(df['dt'], format = date_format)
+    return df
+
 def get_time_series(df, freq='auto'):
     if freq == 'auto':
         freq = int(df['dt'].diff().dt.total_seconds().mode().values[0])
@@ -18,9 +26,27 @@ def get_time_series(df, freq='auto'):
                     freq = freq )
     return df_ts.merge(df, how='left', on = 'dt'), freq
 
-def data_init(df, date_format="%Y-%m-%d %H:%M:%S"):
-    df['dt'] = pd.to_datetime(df['dt'], format = date_format)
-    return df
+def restore_data(model, X_array):
+    restored = restore_signal(spectrum = model.spectrum,
+                              array = X_array,
+                              top = model._top_n
+                              ) / model._length
+    restored += restore_trend(X_array, model._polyvals)
+    restored = add_datetime_features(restored)
+    return restored
+
+# %% %%
+# Missing data
+# %% %%
+
+def fill_missing(data):
+    return data.fillna(0)
+
+
+
+# %% %%
+# Trend - Periodical decomposition
+# %% %%
 
 def get_trend(signal):
     polyvals = np.polyfit(x = np.arange(len(signal)),
@@ -56,8 +82,13 @@ def restore_signal(spectrum, array, top):
         F = row['freq']
         P = row['phase']
         A = row['abs']
-        signal += 2*A*np.exp(1j*2*np.pi*F*array + 1j*P)
+        #signal += 2*A*np.exp(1j*2*np.pi*F*array + 1j*P)
+        signal += 2*A*np.cos(2*np.pi*F*array + P)
     return np.real(signal)
+
+# %% %%
+# Optimization
+# %% %%
 
 def define_optimal_n(signal, cv = 0.1, n_max = 20):
     if (cv >= 1) or (cv <= 0):
@@ -76,17 +107,9 @@ def define_optimal_n(signal, cv = 0.1, n_max = 20):
     optimal_n = RESULT.iloc[RESULT[RESULT['n']>2]['mae_cv'].idxmin()]['n']
     return int(optimal_n), RESULT
 
-
-def MAPE(E,F,C):
-    sigma = np.sum(abs(F - E)/C/4)/len(F)
-    return sigma
-def MAE(E,F):
-    sigma = np.sum(abs(F - E))/len(F)
-    return sigma
-def MABE(E,F):
-    sigma = np.sum(F - E)/len(F)
-    return sigma
-
+# %% %%
+# Plottings
+# %% %%
 
 def plot_spectrum(spectrum, top_n, save_to = None, log = False, scale = 1):
     top_spectrum = spectrum[spectrum['peak']==1].sort_values(['abs']).tail(top_n)
@@ -115,6 +138,8 @@ def plot_spectrum(spectrum, top_n, save_to = None, log = False, scale = 1):
     plt.show()
 
 # %% %%
+# Features
+# %% %%
 
 def add_datetime_features(data):
     dt = data['dt'].dt
@@ -132,7 +157,7 @@ def add_datetime_features(data):
     data['month_c'] = np.cos(2.*np.pi*dt.month/12.)
     return data
 
-def lagged_features(df, lags, forward = 0, pred = 0):
+def add_lagged_features(df, lags, forward = 0, pred = 0):
     lags = list(map(int, lags))
     df_lags = pd.DataFrame([])
     for column in df.columns:
@@ -145,7 +170,6 @@ def lagged_features(df, lags, forward = 0, pred = 0):
 
 def features_imp(df, target):
     from sklearn.ensemble import RandomForestRegressor as RF
-    from sklearn.metrics import mean_absolute_error as metric
     df['RAND_bin'] = np.random.randint(2, size = len(df[target]))
     df['RAND_uniform'] = np.random.uniform(0,1, len(df[target]))
     df['RAND_int'] = np.random.randint(100, size = len(df[target]))
@@ -153,7 +177,7 @@ def features_imp(df, target):
     estimator = RF(random_state = 42, n_estimators = 50)
     estimator.fit(df[columns], df[target])
     Y_pred = estimator.predict(df[columns])
-    baseline = metric(Y_pred,df[target])
+    baseline = MAE(Y_pred,df[target])
     imp = []
     for col in columns:
         col_imp = []
@@ -161,7 +185,7 @@ def features_imp(df, target):
             save = df[col].copy()
             df[col] = np.random.permutation(df[col])
             Y_pred = estimator.predict(df[columns])
-            m = metric(Y_pred, df[target])
+            m = MAE(Y_pred, df[target])
             df[col] = save
             col_imp.append(baseline - m)
         imp.append(np.mean(col_imp))
