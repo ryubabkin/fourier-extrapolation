@@ -24,7 +24,7 @@ class PeriodicRegression(object):
         self.time_series = functions.fill_missing(self.time_series)
         self.time_series = functions.add_datetime_features(self.time_series)
         self._trend, self._polyvals = functions.get_trend(self.time_series['y'])
-        
+
         signal = self.time_series['y'] - self._trend
 
         if top_n == 'auto':
@@ -39,7 +39,8 @@ class PeriodicRegression(object):
         self.spectrum = functions.get_frequencies(signal = signal)
         self._length = len(signal)
 
-    def predict(self, start, end, steps = None):
+    #def predict(self, start, end, steps = None):
+    def predict(self, X_array):
         restored = functions.restore_data(self, X_array)
         return restored
 
