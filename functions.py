@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from scipy.signal import find_peaks, peak_widths
 from sklearn.metrics import mean_absolute_error as MAE
 
+from PeriodicRegressionClass import PeriodicRegression
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
 
@@ -30,9 +31,9 @@ def restore_data(model, X_array):
     restored = restore_signal(spectrum = model.spectrum,
                               array = X_array,
                               top = model._top_n
-                              ) / model._length
+                              ) / model._length *2
     restored += restore_trend(X_array, model._polyvals)
-    restored = add_datetime_features(restored)
+    #restored = add_datetime_features(restored)
     return restored
 
 # %% %%
@@ -76,7 +77,7 @@ def get_frequencies(signal):
     return spectrum
 
 def restore_signal(spectrum, array, top):
-    spectrum = spectrum[spectrum['peak']==1].sort_values('abs').tail(int(top))
+    spectrum = spectrum[spectrum['peak']==1].sort_values('abs', ascending=False).head(int(top))
     signal = np.zeros(len(array),dtype=np.complex_)
     for _, row in spectrum.iterrows():
         F = row['freq']
@@ -98,7 +99,7 @@ def define_optimal_n(signal, cv = 0.1, n_max = 20):
     spectrum = get_frequencies(signal[:len_train])
     RESULT = pd.DataFrame()
     for n in range(1,n_max):
-        restored = restore_signal(spectrum, X, n)/len(X)
+        restored = restore_signal(spectrum, X, n)/len(X)*2
         RESULT = RESULT.append({
             "n" : n,
             "mae_train" : MAE(signal[:len_train],restored[:len_train]),
@@ -106,6 +107,22 @@ def define_optimal_n(signal, cv = 0.1, n_max = 20):
         }, ignore_index = True)
     optimal_n = RESULT.iloc[RESULT[RESULT['n']>2]['mae_cv'].idxmin()]['n']
     return int(optimal_n), RESULT
+
+def find_length_correction(data, max_correction=100, top_n=3, cv=0.1):
+    result = pd.DataFrame([])
+    for x in range(1, max_correction, 1):
+        PR = PeriodicRegression()
+        PR.fit(data[:-x], top_n = top_n,  cv=cv)
+        MAX = PR.spectrum.iloc[PR.spectrum['abs'].idxmax()]
+
+        r = {'x' : x,
+             'freq' : np.real(MAX['freq']),
+             'width' : np.real(MAX['width']),
+             'abs' : np.real(MAX['abs'])}
+        result = result.append(r,ignore_index=True)
+    peaks, _ = find_peaks(result['abs'])
+    optimal = np.arange(1, max_correction, 1)[peaks].min()
+    return optimal
 
 # %% %%
 # Plottings
