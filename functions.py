@@ -31,7 +31,7 @@ def restore_data(model, X_array):
     restored = restore_signal(spectrum = model.spectrum,
                               array = X_array,
                               top = model._top_n
-                              ) / model._length *2
+                              ) / model._length
     restored += restore_trend(X_array, model._polyvals)
     #restored = add_datetime_features(restored)
     return restored
@@ -99,7 +99,7 @@ def define_optimal_n(signal, cv = 0.1, n_max = 20):
     spectrum = get_frequencies(signal[:len_train])
     RESULT = pd.DataFrame()
     for n in range(1,n_max):
-        restored = restore_signal(spectrum, X, n)/len(X)*2
+        restored = restore_signal(spectrum, X, n)/len(X)
         RESULT = RESULT.append({
             "n" : n,
             "mae_train" : MAE(signal[:len_train],restored[:len_train]),
@@ -120,9 +120,8 @@ def find_length_correction(data, max_correction=100, top_n=3, cv=0.1):
              'width' : np.real(MAX['width']),
              'abs' : np.real(MAX['abs'])}
         result = result.append(r,ignore_index=True)
-    peaks, _ = find_peaks(result['abs'])
-    optimal = np.arange(1, max_correction, 1)[peaks].min()
-    return optimal
+    optimal = int(result[result['abs']==result['abs'].max()]['x'].min())
+    return optimal, result
 
 # %% %%
 # Plottings
