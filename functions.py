@@ -2,9 +2,10 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.signal import find_peaks, peak_widths
-from sklearn.metrics import mean_absolute_error as MAE
+from sklearn.metrics import r2_score
+from sklearn.linear_model import LinearRegression
 
-from PeriodicRegressionClass import PeriodicRegression
+#from PeriodicRegressionClass import PeriodicRegression
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
 
@@ -27,14 +28,20 @@ def get_time_series(df, freq='auto'):
                     freq = freq )
     return df_ts.merge(df, how='left', on = 'dt'), freq
 
-def restore_data(model, X_array):
+def restore_TS(model, X_array):
     restored = restore_signal(spectrum = model.spectrum,
                               array = X_array,
                               top = model._top_n
                               ) / model._length
     restored += restore_trend(X_array, model._polyvals)
-    #restored = add_datetime_features(restored)
     return restored
+
+def create_train_data(data, spectrum, top_n):
+    train_data = add_periodic_features(spectrum = spectrum,
+                                       data = data,
+                                       top = top_n)
+    train_data = add_datetime_features(train_data)
+    return train_data
 
 # %% %%
 # Missing data
@@ -42,7 +49,6 @@ def restore_data(model, X_array):
 
 def fill_missing(data):
     return data.fillna(0)
-
 
 
 # %% %%
@@ -83,9 +89,18 @@ def restore_signal(spectrum, array, top):
         F = row['freq']
         P = row['phase']
         A = row['abs']
-        #signal += 2*A*np.exp(1j*2*np.pi*F*array + 1j*P)
         signal += 2*A*np.cos(2*np.pi*F*array + P)
     return np.real(signal)
+
+def add_periodic_features(spectrum, data, top):
+    array =  np.arange(len(data))
+    spectrum = spectrum[spectrum['peak']==1].sort_values('abs', ascending=False).head(int(top))
+    i = 1
+    for freq in spectrum['freq'].unique():
+        data['freq'+str(i)+'_sin'] = np.sin(2*np.pi*freq*array)
+        data['freq'+str(i)+'_cos'] = np.cos(2*np.pi*freq*array)
+        i += 1
+    return data
 
 # %% %%
 # Optimization
@@ -124,6 +139,25 @@ def find_length_correction(data, max_correction=100, top_n=3, cv=0.1):
     return optimal, result
 
 # %% %%
+# Training functions
+# %% %%
+
+def train_regression(data, cv):
+    train = data.iloc[:-int(len(data)*cv)].reset_index(drop=True)
+    test = data.iloc[-int(len(data)*cv):].reset_index(drop=True)
+    regressor = LinearRegression().fit(train.drop(['dt','y'], axis = 1),
+                                       train['y'])
+    train['y_pred'] = regressor.predict(train.drop(['dt','y'], axis = 1))
+    test['y_pred'] = regressor.predict(test.drop(['dt','y'], axis = 1))
+    scores = result_scores(train['y'].values, test['y'].values,
+                           train['y_pred'].values, test['y_pred'].values )
+    result = {}
+    result['train'] = train[['dt','y','y_pred']]
+    result['test'] = test[['dt','y','y_pred']]
+    return regressor, scores, result
+
+
+# %% %%
 # Plottings
 # %% %%
 
@@ -141,17 +175,47 @@ def plot_spectrum(spectrum, top_n, save_to = None, log = False, scale = 1):
              'x', c='r', markersize=10)
     if log==True:
         plt.xscale('log')
-        plt.xlabel('Frequency (log scale), cph', fontsize=15)
+        plt.xlabel('Frequency (log scale) [1 / Day]', fontsize=15)
     else:
-        plt.xlabel('Frequency, cph', fontsize=15)
+        plt.xlabel('Frequency [1 / Day]', fontsize=15)
     plt.xticks(fontsize=12)
     plt.yticks(fontsize=12)
-    plt.ylabel('Intencity, arb.units', fontsize=15)
+    plt.ylabel('Intencity [arb.units]', fontsize=15)
     plt.title('Signal spectrum', fontsize=15)
     plt.tight_layout()
     if save_to:
         plt.savefig(save_to)
     plt.show()
+
+def plot_train_results(results, x_lim = None, y_lim = None, save_to = None):
+    train = results['train']
+    test = results['test']
+
+    plt.figure(figsize=(12,5))
+    plt.plot(train['dt'],
+             train['y'], c='gray')
+    plt.plot(test['dt'],
+             test['y'], c='gray')
+    plt.plot(train['dt'],
+             train['y_pred'], c='blue')
+    plt.plot(test['dt'],
+             test['y_pred'], c='orange')
+    plt.xlabel('Timestamp', fontsize=15)
+    plt.xticks(fontsize=12)
+    plt.yticks(fontsize=12)
+    plt.ylabel('Target value', fontsize=15)
+    plt.title('Training results', fontsize=15)
+    if x_lim:
+        plt.xlim(pd.to_datetime(x_lim[0]),pd.to_datetime(x_lim[1]))
+    if y_lim:
+        plt.ylim(y_lim[0],y_lim[1])
+    plt.tight_layout()
+
+    if save_to:
+        plt.savefig(save_to)
+    plt.show()
+
+
 
 # %% %%
 # Features
@@ -213,3 +277,34 @@ def features_imp(df, target):
     threshold = FI[FI['feature'].isin(['RAND_bin','RAND_int','RAND_uniform'])]['value'].max()
     FI['important'] = np.where(FI['value']>threshold, True, False)
     return(FI)
+
+# %% %%
+# Metrics
+# %% %%
+
+def MAE(A,F):
+    return np.mean(np.fabs(A-F))
+
+def MBE(A,F):
+    return np.mean(A-F)
+
+def MAPE(A,F):
+    mask = A != 0
+    return np.mean((np.fabs(A - F)/A)[mask])
+
+def RMSE(A,F):
+    return np.sqrt(np.mean((A-F)**2))
+
+def result_scores(y_train, y_test, y_train_pred, y_test_pred):
+    scores = pd.DataFrame([], index = ['train','test'])
+    scores.loc['train','MAE'] = MAE(y_train, y_train_pred)
+    scores.loc['train','MBE'] = MBE(y_train, y_train_pred)
+    scores.loc['train','RMSE'] = RMSE(y_train, y_train_pred)
+    scores.loc['train','MAPE'] = MAPE(y_train, y_train_pred)
+    scores.loc['train','r2_score'] = r2_score(y_train, y_train_pred)
+    scores.loc['test','MAE'] = MAE(y_test, y_test_pred)
+    scores.loc['test','MBE'] = MBE(y_test, y_test_pred)
+    scores.loc['test','RMSE'] = RMSE(y_test, y_test_pred)
+    scores.loc['test','MAPE'] = MAPE(y_test, y_test_pred)
+    scores.loc['test','r2_score'] = r2_score(y_test, y_test_pred)
+    return scores

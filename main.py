@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.signal import find_peaks, peak_widths
+from sklearn.metrics import r2_score
 
 import functions
 from PeriodicRegressionClass import PeriodicRegression
@@ -28,6 +29,8 @@ data['y'] = abs(data['y'])
 data['y'].plot()
 data.shape
 # %% %%
+def MAE(E,F):
+    return np.mean(abs(E-F))
 # %% %%
 top_n = 6
 L = 10000
@@ -48,4 +51,52 @@ plt.show()
 
 PR.plot_spectrum(log=True)
 # %% %%
-L
+L = 32000
+correction, result = functions.find_length_correction(data[:L],1000, 6)
+PR = PeriodicRegression()
+PR.fit(data[:L-correction], top_n = top_n, cv=0.1)
+pr_predict = PR.predict(np.arange(0,len(data)))
+FREQS = PR.spectrum[PR.spectrum['peak']==1].sort_values('abs').tail(top_n)['freq']
+DF = pd.DataFrame()
+DF['dt'] = data['dt']
+DF['y'] = data['y']
+X = np.arange(len(DF['dt']))
+i = 1
+for freq in FREQS:
+    DF['freq'+str(i)+'_s'] = np.sin(2*np.pi*freq*X)
+    DF['freq'+str(i)+'_c'] = np.cos(2*np.pi*freq*X)
+    i+=1
+
+regr = LR()
+regr.fit(DF.drop(['dt','y'],axis=1)[:L],DF['y'][:L])
+P = regr.predict(DF.drop(['dt','y'],axis=1))
+
+
+
+regr1 = LR()
+regr1.fit(pr_predict[:L].reshape(-1, 1),DF['y'][:L])
+P1 = regr1.predict(pr_predict.reshape(-1, 1))
+
+plt.figure(figsize=(10,7))
+plt.plot(np.arange(0,len(data)),data['y'])
+plt.plot(np.arange(0,len(data)),P, alpha = 0.75)
+plt.plot(np.arange(0,len(data)),pr_predict, alpha = 0.75)
+plt.plot(np.arange(0,len(data)),P1, alpha = 0.75)
+plt.axvline(L,c='r')
+#plt.xlim(18000,18500)
+plt.show()
+
+correction
+r2_score(data['y'][L:].values,P[L:])
+r2_score(data['y'][L:].values,pr_predict[L:])
+r2_score(data['y'][L:].values,P1[L:])
+
+# %% %%
+PR = PeriodicRegression()
+top_n = 50
+PR.fit(data, top_n = top_n, cv=0.25)
+PR.plot_train_results(x_lim = ('2019-01-01','2019-05-01'),
+                      y_lim = (0,1500))
+PR._scores
+
+PR.plot_spectrum(log=True)
