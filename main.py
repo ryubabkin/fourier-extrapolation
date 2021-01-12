@@ -93,12 +93,19 @@ r2_score(data['y'][L:].values,P1[L:])
 
 # %% %%
 PR = PeriodicRegression()
-top_n = 15
-PR.fit(data, top_n = top_n, max_correction = 300, cv=0.15)
+top_n = 25
+PR.fit(data, top_n = top_n, max_correction = 300, cv=0.05, lags=[1,2,3,4,5,6,7], lag_freq='1D')
 PR.plot_train_results()
 PR.plot_train_results(x_lim = ('2020-06-01','2020-08-09'),
                       y_lim = (400,1800))
-PR.plot_spectrum(log=True)
 PR._scores
 
-PR.plot_corrections()
+#PR.plot_spectrum(log=True)
+	         MAE	MBE	              RMSE	      MAPE	    r2_score
+train	98.179883	5.437123e-14	143.896124	0.117991	0.809861
+test	117.154438	1.384111e+01	165.462281	0.140101	0.786918
+
+
+MAE	MBE	RMSE	MAPE	r2_score
+train	89.338889	-9.382801e-14	128.141860	10.987896	0.848517
+test	96.992640	-1.005513e+01	131.613239	10.723795	0.868977

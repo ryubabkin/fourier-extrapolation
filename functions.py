@@ -4,8 +4,9 @@ import matplotlib.pyplot as plt
 from scipy.signal import find_peaks, peak_widths
 from sklearn.metrics import r2_score
 from sklearn.linear_model import LinearRegression
+from sklearn.ensemble import RandomForestRegressor
 
-#from PeriodicRegressionClass import PeriodicRegression
+
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
 
@@ -36,11 +37,15 @@ def restore_TS(model, X_array):
     restored += restore_trend(X_array, model._polyvals)
     return restored
 
-def create_train_data(data, spectrum, top_n):
+def create_train_data(data, spectrum, top_n, lags, lag_freq):
     train_data = add_periodic_features(spectrum = spectrum,
                                        data = data,
                                        top = top_n)
     train_data = add_datetime_features(train_data)
+    if lags is not None:
+        train_data = add_lagged_features(data = train_data,
+                                         lags = lags,
+                                         freq = lag_freq).dropna()
     return train_data
 
 # %% %%
@@ -105,16 +110,6 @@ def restore_signal(spectrum, array, top):
         signal += 2*A*np.cos(2*np.pi*F*array + P)
     return np.real(signal)
 
-def add_periodic_features(spectrum, data, top):
-    array =  np.arange(len(data))
-    spectrum = spectrum[spectrum['peak']==1].sort_values('abs', ascending=False).head(int(top))
-    i = 1
-    for freq in spectrum['freq'].unique():
-        data['freq'+str(i)+'_sin'] = np.sin(2*np.pi*freq*array)
-        data['freq'+str(i)+'_cos'] = np.cos(2*np.pi*freq*array)
-        i += 1
-    return data
-
 # %% %%
 # Optimization
 # %% %%
@@ -145,7 +140,7 @@ def define_optimal_n(signal, cv = 0.1, n_max = 20):
 def train_regression(data, cv):
     train = data.iloc[:-int(len(data)*cv)].reset_index(drop=True)
     test = data.iloc[-int(len(data)*cv):].reset_index(drop=True)
-    regressor = LinearRegression().fit(train.drop(['dt','y'], axis = 1),
+    regressor = RandomForestRegressor().fit(train.drop(['dt','y'], axis = 1),
                                        train['y'])
     train['y_pred'] = regressor.predict(train.drop(['dt','y'], axis = 1))
     test['y_pred'] = regressor.predict(test.drop(['dt','y'], axis = 1))
@@ -238,6 +233,16 @@ def plot_corrections(corrections, save_to = None):
 # Features
 # %% %%
 
+def add_periodic_features(spectrum, data, top):
+    array =  np.arange(len(data))
+    spectrum = spectrum[spectrum['peak']==1].sort_values('abs', ascending=False).head(int(top))
+    i = 1
+    for freq in spectrum['freq'].unique():
+        data['freq'+str(i)+'_sin'] = np.sin(2*np.pi*freq*array)
+        data['freq'+str(i)+'_cos'] = np.cos(2*np.pi*freq*array)
+        i += 1
+    return data
+
 def add_datetime_features(data):
     dt = data['dt'].dt
     ## hours.mins.seconds into circle coordinates hour_x and hour_y
@@ -253,7 +258,7 @@ def add_datetime_features(data):
     data['month_s'] = np.sin(2.*np.pi*dt.month/12.)
     data['month_c'] = np.cos(2.*np.pi*dt.month/12.)
     return data
-
+"""
 def add_lagged_features(df, lags, forward = 0, pred = 0):
     lags = list(map(int, lags))
     df_lags = pd.DataFrame([])
@@ -264,6 +269,17 @@ def add_lagged_features(df, lags, forward = 0, pred = 0):
             else:
                 pass
     return(df_lags)
+"""
+def add_lagged_features(data, lags, freq = None):
+    if freq == None:
+        for lag in lags:
+            data[f'lag_{lag}'] = data['y'].shift(lag)
+    else:
+        data = data.set_index('dt')
+        for lag in lags:
+            data[f'lag_{lag}_{freq}'] = data['y'].shift(lag,freq)
+        data = data.reset_index()
+    return data
 
 def features_imp(df, target):
     from sklearn.ensemble import RandomForestRegressor as RF
@@ -307,7 +323,7 @@ def MBE(A,F):
 
 def MAPE(A,F):
     mask = A != 0
-    return np.mean((np.fabs(A - F)/A)[mask])
+    return np.mean((np.fabs(A - F)/A)[mask])*100
 
 def RMSE(A,F):
     return np.sqrt(np.mean((A-F)**2))

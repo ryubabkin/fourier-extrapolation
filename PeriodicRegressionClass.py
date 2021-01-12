@@ -17,6 +17,8 @@ class PeriodicRegression(object):
             n_max = 20,
             cv = 0.1,
             date_format = "%Y-%m-%d %H:%M:%S",
+            lags = None,
+            lag_freq = None,
             max_correction = None):
 
         if max_correction is None:
@@ -49,7 +51,9 @@ class PeriodicRegression(object):
         self._spectrum = functions.get_frequencies(signal = signal[:-self._cut])
         prepared_data = functions.create_train_data(data = self._time_series,
                                                     spectrum = self._spectrum,
-                                                    top_n = self._top_n
+                                                    top_n = self._top_n,
+                                                    lags = lags,
+                                                    lag_freq = lag_freq,
                                                     ).reset_index(drop = True)
 
         self._regressor, self._scores, self._train_result = functions.train_regression(data = prepared_data,
