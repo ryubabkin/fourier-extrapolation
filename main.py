@@ -93,10 +93,12 @@ r2_score(data['y'][L:].values,P1[L:])
 
 # %% %%
 PR = PeriodicRegression()
-top_n = 50
-PR.fit(data, top_n = top_n, cv=0.25)
-PR.plot_train_results(x_lim = ('2019-01-01','2019-05-01'),
-                      y_lim = (0,1500))
+top_n = 15
+PR.fit(data, top_n = top_n, max_correction = 300, cv=0.15)
+PR.plot_train_results()
+PR.plot_train_results(x_lim = ('2020-06-01','2020-08-09'),
+                      y_lim = (400,1800))
+PR.plot_spectrum(log=True)
 PR._scores
 
-PR.plot_spectrum(log=True)
+PR.plot_corrections()

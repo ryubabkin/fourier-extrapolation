@@ -69,6 +69,19 @@ def restore_trend(array, polyvals):
     restored = array*polyvals[0] + polyvals[1]
     return restored
 
+def find_length_correction(signal, max_correction, top_n, cv):
+    result = pd.DataFrame([])
+    for x in range(1, max_correction, 1):
+        spectrum = get_frequencies(signal[:-x])
+        MAX = spectrum.iloc[spectrum['abs'].idxmax()]
+        r = {'x' : x,
+             'freq' : np.real(MAX['freq']),
+             'width' : np.real(MAX['width']),
+             'abs' : np.real(MAX['abs'])}
+        result = result.append(r,ignore_index=True)
+    optimal = int(result[result['abs']==result['abs'].max()]['x'].min())
+    return optimal, result
+
 def get_frequencies(signal):
     signal = np.round(signal,2)
     spectrum = pd.DataFrame([])
@@ -123,20 +136,7 @@ def define_optimal_n(signal, cv = 0.1, n_max = 20):
     optimal_n = RESULT.iloc[RESULT[RESULT['n']>2]['mae_cv'].idxmin()]['n']
     return int(optimal_n), RESULT
 
-def find_length_correction(data, max_correction=100, top_n=3, cv=0.1):
-    result = pd.DataFrame([])
-    for x in range(1, max_correction, 1):
-        PR = PeriodicRegression()
-        PR.fit(data[:-x], top_n = top_n,  cv=cv)
-        MAX = PR.spectrum.iloc[PR.spectrum['abs'].idxmax()]
 
-        r = {'x' : x,
-             'freq' : np.real(MAX['freq']),
-             'width' : np.real(MAX['width']),
-             'abs' : np.real(MAX['abs'])}
-        result = result.append(r,ignore_index=True)
-    optimal = int(result[result['abs']==result['abs'].max()]['x'].min())
-    return optimal, result
 
 # %% %%
 # Training functions
@@ -215,7 +215,24 @@ def plot_train_results(results, x_lim = None, y_lim = None, save_to = None):
         plt.savefig(save_to)
     plt.show()
 
+def plot_corrections(corrections, save_to = None):
+    plt.figure(figsize=(10,5))
+    optimal = int(corrections[corrections['abs']==corrections['abs'].max()]['x'].min())
+    plt.plot(corrections[corrections['x']==optimal]['x'],
+             corrections[corrections['x']==optimal]['abs'],
+             'x', c='r', markersize=15, markeredgewidth=5)
+    plt.plot(corrections['x'],
+             corrections['abs'], c='b')
+    plt.xlabel('Shifts', fontsize=15)
+    plt.xticks(fontsize=12)
+    plt.yticks(fontsize=12)
+    plt.ylabel('Main frequency amplitude', fontsize=15)
+    plt.title('The optimal cut length is '+str(optimal), fontsize=15)
+    plt.tight_layout()
 
+    if save_to:
+        plt.savefig(save_to)
+    plt.show()
 
 # %% %%
 # Features

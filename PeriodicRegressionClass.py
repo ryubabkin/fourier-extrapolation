@@ -16,7 +16,12 @@ class PeriodicRegression(object):
             top_n = 'auto',
             n_max = 20,
             cv = 0.1,
-            date_format = "%Y-%m-%d %H:%M:%S"):
+            date_format = "%Y-%m-%d %H:%M:%S",
+            max_correction = None):
+
+        if max_correction is None:
+            max_correction = int(len(data)*0.1)
+
         data = functions.data_init(df = data,
                          date_format = date_format)
         time_series, self._dt_freq = functions.get_time_series(data)
@@ -36,7 +41,12 @@ class PeriodicRegression(object):
             self._top_n = int(top_n)
             self._mae_score = None
 
-        self._spectrum = functions.get_frequencies(signal = signal)
+        self._cut, self._corrections = functions.find_length_correction(signal = signal,
+                                                                                  max_correction = max_correction,
+                                                                                  top_n = self._top_n,
+                                                                                  cv = cv)
+
+        self._spectrum = functions.get_frequencies(signal = signal[:-self._cut])
         prepared_data = functions.create_train_data(data = self._time_series,
                                                     spectrum = self._spectrum,
                                                     top_n = self._top_n
@@ -68,3 +78,7 @@ class PeriodicRegression(object):
                                      x_lim = x_lim,
                                      y_lim = y_lim,
                                      save_to = save_to)
+
+    def plot_corrections(self, save_to = None):
+        functions.plot_corrections(corrections = self._corrections,
+                                   save_to = save_to)
