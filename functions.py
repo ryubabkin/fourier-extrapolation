@@ -70,23 +70,6 @@ def get_trend(signal):
     polyvals = polyvals.flatten().tolist()
     return trend, polyvals
 
-def restore_trend(array, polyvals):
-    restored = array*polyvals[0] + polyvals[1]
-    return restored
-
-def find_length_correction(signal, max_correction, top_n, cv):
-    result = pd.DataFrame([])
-    for x in range(1, max_correction, 1):
-        spectrum = get_frequencies(signal[:-x])
-        MAX = spectrum.iloc[spectrum['abs'].idxmax()]
-        r = {'x' : x,
-             'freq' : np.real(MAX['freq']),
-             'width' : np.real(MAX['width']),
-             'abs' : np.real(MAX['abs'])}
-        result = result.append(r,ignore_index=True)
-    optimal = int(result[result['abs']==result['abs'].max()]['x'].min())
-    return optimal, result
-
 def get_frequencies(signal):
     signal = np.round(signal,2)
     spectrum = pd.DataFrame([])
@@ -99,6 +82,10 @@ def get_frequencies(signal):
     spectrum['peak'] = np.where(spectrum.index.isin(peaks),1,0)
     spectrum.loc[spectrum.index[peaks], 'width'] = half_width
     return spectrum
+
+def restore_trend(array, polyvals):
+    restored = array*polyvals[0] + polyvals[1]
+    return restored
 
 def restore_signal(spectrum, array, top):
     spectrum = spectrum[spectrum['peak']==1].sort_values('abs', ascending=False).head(int(top))
@@ -114,6 +101,19 @@ def restore_signal(spectrum, array, top):
 # Optimization
 # %% %%
 
+def find_length_correction(signal, max_correction, top_n, cv):
+    result = pd.DataFrame([])
+    for x in range(1, max_correction, 1):
+        spectrum = get_frequencies(signal[:-x])
+        MAX = spectrum.iloc[spectrum['abs'].idxmax()]
+        r = {'x' : x,
+             'freq' : np.real(MAX['freq']),
+             'width' : np.real(MAX['width']),
+             'abs' : np.real(MAX['abs'])}
+        result = result.append(r,ignore_index=True)
+    optimal = int(result[result['abs']==result['abs'].max()]['x'].min())
+    return optimal, result
+
 def define_optimal_n(signal, cv = 0.1, n_max = 20):
     if (cv >= 1) or (cv <= 0):
         cv = 0.1
@@ -122,7 +122,9 @@ def define_optimal_n(signal, cv = 0.1, n_max = 20):
     spectrum = get_frequencies(signal[:len_train])
     RESULT = pd.DataFrame()
     for n in range(1,n_max):
-        restored = restore_signal(spectrum, X, n)/len(X)
+        restored = restore_signal(spectrum = spectrum,
+                                  array = X,
+                                  top = n)/len(X)
         RESULT = RESULT.append({
             "n" : n,
             "mae_train" : MAE(signal[:len_train],restored[:len_train]),
@@ -140,7 +142,7 @@ def define_optimal_n(signal, cv = 0.1, n_max = 20):
 def train_regression(data, cv):
     train = data.iloc[:-int(len(data)*cv)].reset_index(drop=True)
     test = data.iloc[-int(len(data)*cv):].reset_index(drop=True)
-    regressor = RandomForestRegressor().fit(train.drop(['dt','y'], axis = 1),
+    regressor = LinearRegression().fit(train.drop(['dt','y'], axis = 1),
                                        train['y'])
     train['y_pred'] = regressor.predict(train.drop(['dt','y'], axis = 1))
     test['y_pred'] = regressor.predict(test.drop(['dt','y'], axis = 1))
