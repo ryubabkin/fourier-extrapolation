@@ -275,11 +275,12 @@ def add_lagged_features(df, lags, forward = 0, pred = 0):
 def add_lagged_features(data, lags, freq = None):
     if freq == None:
         for lag in lags:
-            data[f'lag_{lag}'] = data['y'].shift(lag)
+            data[f'lag_{lag}'] = data['y'].shift(lag).values
     else:
         data = data.set_index('dt')
         for lag in lags:
-            data[f'lag_{lag}_{freq}'] = data['y'].shift(lag,freq)
+            shift = data['y'].shift(lag,freq).rename(f'lag_{lag}_{freq}')
+            data = data.join(shift)
         data = data.reset_index()
     return data
 
