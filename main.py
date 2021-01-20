@@ -9,26 +9,24 @@ from PeriodicRegressionClass import PeriodicRegression
 import warnings
 warnings.filterwarnings('ignore')
 # %% %%
-data = pd.read_csv('/home/brom/LAB/SLai_Folder/PeriodicRegression.model/energy_records_history.csv')
-data = data[data['id']==150001]
-data['energyKwh'].plot()
-data['dt'] = data['timeFrom']
-data['y'] = data['energyKwh']
+data = pd.read_csv('/home/brom/LAB/SLai_Folder/PeriodicRegression.model/Weather.csv')
+data
+data = data[data['city'] == 'brindisi']
+data['dt'] = data['time']
+data['y'] = data['solarIrradiance']
 data = data[['dt','y']]
 data['dt'] = pd.to_datetime(data['dt'])
+data = data.sort_values('dt').reset_index(drop=True)
 
-top_n = 5
+data['y'].plot()
+
 # %% %%
-PR = PeriodicRegression(top_n = top_n, max_correction = 300, cv=0.05, lags=[1,2,3,4,5,6,7], lag_freq='1D')
+top_n=3
+PR = PeriodicRegression(top_n=None, max_correction = 300, cv=0.2, lags=[2,3,4,5,6,7], lag_freq='1d')
 PR.fit(data)
-
 PR.plot_train_results()
-PR.plot_train_results(x_lim = ('2020-06-01','2020-08-09'),
-                      y_lim = (400,1800))
+PR.plot_train_results(x_lim=('2020-01-01', '2020-07-09'))#, y_lim=(800, 1600))
+PR._params
+PR.plot_spectrum(log=True)
+PR.__dir__()
 PR.scores
-dir(PR)
-PR.plot_corrections()
-#PR.plot_spectrum(log=True)
-	MAE	MBE	RMSE	MAPE	r2_score
-train	89.338889	-9.382801e-14	128.141860	10.987896	0.848517
-test	96.992640	-1.005513e+01	131.613239	10.723795	0.868977
