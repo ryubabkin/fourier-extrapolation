@@ -70,44 +70,46 @@ def get_deltas(data, freq):
     deltas['diff'] = deltas['diff'] - freq
     return deltas
 
+
 def get_interpolation(data, start, steps, freq):
     result = DataFrame([])
-    for i in range(0,steps):
-        date = start+freq*i
+    for i in range(0, steps):
+        date = start + freq * i
         missed = DataFrame([])
-        dtrg = date_range(date-Timedelta('1d')-Timedelta('1d')*(freq*i).days,
-                                date+Timedelta('1d')+Timedelta('1d')*(freq*(steps-i)).days,
-                                freq = '1d')
+        dtrg = date_range(date - Timedelta('1d') - Timedelta('1d') * (freq * i).days,
+                          date + Timedelta('1d') + Timedelta('1d') * (freq * (steps - i)).days,
+                          freq='1d')
         missed['dt'] = dtrg
         for point in dtrg:
-            missed.loc[missed['dt']==point,'y'] = data.loc[data['dt']==point,'y'].values[0]
+            missed.loc[missed['dt'] == point, 'y'] = data.loc[data['dt'] == point, 'y'].values[0]
         missed['y'] = missed['y'].interpolate(method='linear')
         result = concat([result, missed])
     result = result.sort_values('dt')
-    result = result.drop_duplicates(subset=['dt'])
+    result = result.drop_duplicates('dt')
     result.reset_index(drop=True, inplace=True)
     return result
 
+
 def fill_missing(data, freq, ranges=None):
     freq = Timedelta(freq)
-    if ranges == None:
-        ranges = ['3h','3d']
+    if ranges is None:
+        ranges = ['3h', '3d']
     short_range = Timedelta(ranges[0])
     long_range = Timedelta(ranges[1])
     deltas = get_deltas(data, freq)
-    for _, row in deltas[deltas['diff']<=short_range].iterrows():
+    for _, row in deltas[deltas['diff'] <= short_range].iterrows():
         start = row['dt'] - freq
-        end = row['dt']+(row['steps']+1)*freq
-        data.loc[(data['dt']>=start)&(data['dt']<end),'y'] = data.loc[(data['dt']>=start)&(data['dt']<end),'y'].interpolate(method='linear')
-    for _, row in deltas[(deltas['diff']>short_range)&(deltas['diff']<=long_range)].iterrows():
+        end = row['dt'] + (row['steps'] + 1) * freq
+        data.loc[(data['dt'] >= start) & (data['dt'] < end), 'y'] = data.loc[
+            (data['dt'] >= start) & (data['dt'] < end), 'y'].interpolate(method='linear')
+    for _, row in deltas[(deltas['diff'] > short_range) & (deltas['diff'] <= long_range)].iterrows():
         start = row['dt']
-        end = row['dt']+row['steps']*freq
-        delta = row['steps']*freq
         steps = row['steps']
         interp = get_interpolation(data, start, steps, freq)
         for time in interp['dt']:
-            data.loc[data['dt']==time,'y'] = interp.loc[interp['dt']==time,'y'].values[0]
+            data.loc[data['dt'] == time, 'y'] = interp.loc[interp['dt'] == time, 'y'].values[0]
     return data, deltas
+
 
 # %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %%
 # Trend - Periodical decomposition
@@ -369,32 +371,34 @@ def plot_corrections(corrections, save_to=None):
         plt.savefig(save_to)
     plt.show()
 
+
 def plot_missing_data(data, missing, freq, frame=None, save_to=None):
     freq = Timedelta(freq)
     if frame is None:
         frame = 5
     for _, row in missing.iterrows():
         start = row['dt']
-        end = row['dt']+(row['steps']+1)*freq
-        missed_data = data[(data['dt']>=start)&(data['dt']<end)]
+        end = row['dt'] + (row['steps'] + 1) * freq
+        missed_data = data[(data['dt'] >= start) & (data['dt'] < end)]
 
-        start_frame = start - freq*frame
-        end_frame =  end + freq*frame
-        whole_data = data[(data['dt']>=start_frame)&(data['dt']<end_frame)]
+        start_frame = start - freq * frame
+        end_frame = end + freq * frame
+        whole_data = data[(data['dt'] >= start_frame) & (data['dt'] < end_frame)]
 
-        plt.figure(figsize=(12,5))
-        plt.plot(whole_data['dt'],whole_data['y'], c='b', label = 'original data')
-        plt.plot(missed_data['dt'],missed_data['y'], 'o-', c='r', label = 'filled data')
+        plt.figure(figsize=(12, 5))
+        plt.plot(whole_data['dt'], whole_data['y'], c='b', label='original data')
+        plt.plot(missed_data['dt'], missed_data['y'], 'o-', c='r', label='filled data')
         plt.legend(fontsize=15, loc=1)
         plt.yticks(fontsize=15)
         plt.xticks(fontsize=13)
         plt.title(f"{start.strftime(format='%Y-%m-%d %H:%M:%S')} / {row['steps']} steps",
-                  fontsize = 15)
+                  fontsize=15)
         plt.tight_layout()
-        name = '/missed_'+start.strftime(format='%Y-%m-%d %H:%M:%S')+'.png'
+        name = '/missed_' + start.strftime(format='%Y-%m-%d %H:%M:%S') + '.png'
         if save_to:
-            plt.savefig(save_to+name)
+            plt.savefig(save_to + name)
         plt.show()
+
 
 # %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %%
 # Metrics
