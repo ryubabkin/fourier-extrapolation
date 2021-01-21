@@ -97,6 +97,13 @@ class PeriodicRegression(object):
                              y_lim=y_lim,
                              save_to=save_to)
 
+    def plot_missing_data(self, frame=None, save_to=None):
+        f.plot_missing_data(data=self._utils.time_series,
+                            missing=self._utils.missing,
+                            freq=self._utils.dt_freq,
+                            frame=frame,
+                            save_to=save_to)
+
     def plot_corrections(self, save_to=None):
         f.plot_corrections(corrections=self._utils.corrections,
                            save_to=save_to)
