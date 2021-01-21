@@ -18,7 +18,8 @@ class PeriodicRegression(object):
                  cv=0.1,  # validation part
                  lags=None,  # list of lag steps
                  lag_freq=None,  # time  step for lags
-                 max_correction=None  # max length for correction, 0.1 of length
+                 max_correction=None,  # max length for correction, 0.1 of length
+                 fill_ranges=None  # [short fill range, long fill range] in str freqs
                  ):
         self._params = DotDict({'time_step': time_step,
                                 'top_n': top_n,
@@ -26,7 +27,8 @@ class PeriodicRegression(object):
                                 'cv': cv,
                                 'lags': lags,
                                 'lag_freq': lag_freq,
-                                'max_correction': max_correction})
+                                'max_correction': max_correction,
+                                'fill_ranges' : fill_ranges})
         self._utils = DotDict({})
         self.regressor = None
         self.spectrum = None
@@ -45,7 +47,9 @@ class PeriodicRegression(object):
         time_series, self._utils.dt_freq = f.get_time_series(data)
         self._utils.dt_start = time_series['dt'].min()
         self._utils.dt_end = time_series['dt'].max()
-        self._utils.time_series = f.fill_missing(time_series)
+        self._utils.time_series, self._utils.missing = f.fill_missing(data = time_series,
+                                                                      freq = self._utils.dt_freq,
+                                                                      ranges = self._params.fill_ranges)
         self._utils.trend, self._utils.polyvals = f.get_trend(self._utils.time_series['y'])
         signal = self._utils.time_series['y'] - self._utils.trend
 
