@@ -107,7 +107,7 @@ def fill_missing(data, freq, ranges=None):
         interp = get_interpolation(data, start, steps, freq)
         for time in interp['dt']:
             data.loc[data['dt']==time,'y'] = interp.loc[interp['dt']==time,'y'].values[0]
-    return data
+    return data, deltas
 
 # %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %%
 # Trend - Periodical decomposition
@@ -369,6 +369,32 @@ def plot_corrections(corrections, save_to=None):
         plt.savefig(save_to)
     plt.show()
 
+def plot_missing_data(data, missing, freq, frame=None, save_to=None):
+    freq = Timedelta(freq)
+    if frame is None:
+        frame = 5
+    for _, row in missing.iterrows():
+        start = row['dt']
+        end = row['dt']+(row['steps']+1)*freq
+        missed_data = data[(data['dt']>=start)&(data['dt']<end)]
+
+        start_frame = start - freq*frame
+        end_frame =  end + freq*frame
+        whole_data = data[(data['dt']>=start_frame)&(data['dt']<end_frame)]
+
+        plt.figure(figsize=(12,5))
+        plt.plot(whole_data['dt'],whole_data['y'], c='b', label = 'original data')
+        plt.plot(missed_data['dt'],missed_data['y'], 'o-', c='r', label = 'filled data')
+        plt.legend(fontsize=15, loc=1)
+        plt.yticks(fontsize=15)
+        plt.xticks(fontsize=13)
+        plt.title(f"{start.strftime(format='%Y-%m-%d %H:%M:%S')} / {row['steps']} steps",
+                  fontsize = 15)
+        plt.tight_layout()
+        name = '/missed_'+start.strftime(format='%Y-%m-%d %H:%M:%S')+'.png'
+        if save_to:
+            plt.savefig(save_to+name)
+        plt.show()
 
 # %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %%
 # Metrics
