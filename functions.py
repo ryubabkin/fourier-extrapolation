@@ -2,7 +2,7 @@ import warnings
 
 import matplotlib.pyplot as plt
 import numpy as np
-from pandas import DataFrame, to_datetime, date_range
+from pandas import DataFrame, to_datetime, date_range, Timedelta, concat
 from scipy.signal import find_peaks, peak_widths
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import r2_score
@@ -58,9 +58,56 @@ def create_train_data(data, spectrum, top_n, lags, lag_freq):
 # Missing data
 # %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %%
 
-def fill_missing(data):
-    return data.fillna(0)
+def get_deltas(data, freq):
+    data = data.groupby('dt').mean().reset_index().dropna(subset=['y'])
+    deltas = DataFrame([])
+    deltas['dt'] = data['dt']
+    deltas['diff'] = data['dt'] - data['dt'].shift()
+    deltas = deltas[deltas['diff'] != freq][1:]
+    deltas.index = (deltas.index - deltas['diff'] / freq).astype(int)
+    deltas['dt'] = deltas['dt'] - deltas['diff'] + freq
+    deltas['steps'] = (deltas['diff'] / freq - 1).astype(int)
+    deltas['diff'] = deltas['diff'] - freq
+    return deltas
 
+def get_interpolation(data, start, steps, freq):
+    result = DataFrame([])
+    for i in range(0,steps):
+        date = start+freq*i
+        missed = DataFrame([])
+        dtrg = date_range(date-Timedelta('1d')-Timedelta('1d')*(freq*i).days,
+                                date+Timedelta('1d')+Timedelta('1d')*(freq*(steps-i)).days,
+                                freq = '1d')
+        missed['dt'] = dtrg
+        for point in dtrg:
+            missed.loc[missed['dt']==point,'y'] = data.loc[data['dt']==point,'y'].values[0]
+        missed['y'] = missed['y'].interpolate(method='linear')
+        result = concat([result, missed])
+    result = result.sort_values('dt')
+    result = result.drop_duplicates(subset=['dt'])
+    result.reset_index(drop=True, inplace=True)
+    return result
+
+def fill_missing(data, freq, ranges=None):
+    freq = Timedelta(freq)
+    if ranges == None:
+        ranges = ['3h','3d']
+    short_range = Timedelta(ranges[0])
+    long_range = Timedelta(ranges[1])
+    deltas = get_deltas(data, freq)
+    for _, row in deltas[deltas['diff']<=short_range].iterrows():
+        start = row['dt'] - freq
+        end = row['dt']+(row['steps']+1)*freq
+        data.loc[(data['dt']>=start)&(data['dt']<end),'y'] = data.loc[(data['dt']>=start)&(data['dt']<end),'y'].interpolate(method='linear')
+    for _, row in deltas[(deltas['diff']>short_range)&(deltas['diff']<=long_range)].iterrows():
+        start = row['dt']
+        end = row['dt']+row['steps']*freq
+        delta = row['steps']*freq
+        steps = row['steps']
+        interp = get_interpolation(data, start, steps, freq)
+        for time in interp['dt']:
+            data.loc[data['dt']==time,'y'] = interp.loc[interp['dt']==time,'y'].values[0]
+    return data
 
 # %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %%
 # Trend - Periodical decomposition
