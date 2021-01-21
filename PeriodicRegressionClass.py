@@ -113,6 +113,7 @@ class PeriodicRegression(object):
         pickle.dump(self, file, -1)
         file.close()
 
+    @staticmethod
     def load_model(modelfile):
         file = open(str(modelfile), 'rb')
         model = pickle.load(file)
