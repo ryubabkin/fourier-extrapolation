@@ -44,7 +44,8 @@ class PeriodicRegression(object):
 
         data = f.data_init(df=data,
                            date_format=date_format)
-        time_series, self._utils.dt_freq = f.get_time_series(data)
+        time_series, self._utils.dt_freq = f.get_time_series(df = data,
+                                                             freq = self._params.time_step)
         self._utils.dt_start = time_series['dt'].min()
         self._utils.dt_end = time_series['dt'].max()
         self._utils.time_series, self._utils.missing = f.fill_missing(data = time_series,
@@ -66,14 +67,14 @@ class PeriodicRegression(object):
                                                                                        cv=self._params.cv)
 
         self.spectrum = f.get_frequencies(signal=signal[:-self._utils.correction_cut])
-        prepared_data = f.create_train_data(data=self._utils.time_series,
+        self.prepared_data = f.create_train_data(data=self._utils.time_series,
                                             spectrum=self.spectrum,
                                             top_n=self._params.top_n,
                                             lags=self._params.lags,
                                             lag_freq=self._params.lag_freq,
                                             ).reset_index(drop=True)
 
-        self.regressor, self.scores, self._utils.train_result = f.train_regression(data=prepared_data,
+        self.regressor, self.scores, self._utils.train_result = f.train_regression(data=self.prepared_data,
                                                                                    cv=self._params.cv)
 
     def predict(self, start, end):
