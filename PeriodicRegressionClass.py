@@ -4,7 +4,19 @@ import functions as f
 
 
 class DotDict(dict):
-    __getattr__ = dict.get
+    """
+    a dictionary that supports dot notation
+    as well as dictionary access notation
+    usage: d = DotDict() or d = DotDict({'val1':'first'})
+    set attributes: d.val2 = 'second' or d['val2'] = 'second'
+    get attributes: d.val2 or d['val2']
+    """
+
+    def __getattr__(self, attr):
+        if attr.startswith('__'):
+            raise AttributeError
+        return self.get(attr, None)
+
     __setattr__ = dict.__setitem__
     __delattr__ = dict.__delitem__
 
@@ -28,7 +40,7 @@ class PeriodicRegression(object):
                                 'lags': lags,
                                 'lag_freq': lag_freq,
                                 'max_correction': max_correction,
-                                'fill_ranges' : fill_ranges})
+                                'fill_ranges': fill_ranges})
         self._utils = DotDict({})
         self.regressor = None
         self.spectrum = None
@@ -44,13 +56,13 @@ class PeriodicRegression(object):
 
         data = f.data_init(df=data,
                            date_format=date_format)
-        time_series, self._utils.dt_freq = f.get_time_series(df = data,
-                                                             freq = self._params.time_step)
+        time_series, self._utils.dt_freq = f.get_time_series(df=data,
+                                                             freq=self._params.time_step)
         self._utils.dt_start = time_series['dt'].min()
         self._utils.dt_end = time_series['dt'].max()
-        self._utils.time_series, self._utils.missing = f.fill_missing(data = time_series,
-                                                                      freq = self._utils.dt_freq,
-                                                                      ranges = self._params.fill_ranges)
+        self._utils.time_series, self._utils.missing = f.fill_missing(data=time_series,
+                                                                      freq=self._utils.dt_freq,
+                                                                      ranges=self._params.fill_ranges)
         self._utils.trend, self._utils.polyvals = f.get_trend(self._utils.time_series['y'])
         signal = self._utils.time_series['y'] - self._utils.trend
 
@@ -68,11 +80,11 @@ class PeriodicRegression(object):
 
         self.spectrum = f.get_frequencies(signal=signal[:-self._utils.correction_cut])
         self.prepared_data = f.create_train_data(data=self._utils.time_series,
-                                            spectrum=self.spectrum,
-                                            top_n=self._params.top_n,
-                                            lags=self._params.lags,
-                                            lag_freq=self._params.lag_freq,
-                                            ).reset_index(drop=True)
+                                                 spectrum=self.spectrum,
+                                                 top_n=self._params.top_n,
+                                                 lags=self._params.lags,
+                                                 lag_freq=self._params.lag_freq,
+                                                 ).reset_index(drop=True)
 
         self.regressor, self.scores, self._utils.train_result = f.train_regression(data=self.prepared_data,
                                                                                    cv=self._params.cv)
