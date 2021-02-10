@@ -68,21 +68,26 @@ class PeriodicRegression(object):
         self._utils.time_series, self._utils.missing = f.fill_missing(data=time_series,
                                                                       freq=self._utils.dt_freq,
                                                                       ranges=self._params.fill_ranges)
-        self._utils.trend, self._utils.polyvals = f.get_trend(self._utils.time_series['y'])
-        signal = self._utils.time_series['y'] - self._utils.trend
-
+        signal = self._utils.time_series['y']
+        self._utils.trend, self._utils.polyvals = f.get_trend(signal)
         if self._params.top_n is None:
             self._params.top_n, self._utils.n_mae_score = f.define_optimal_n(signal=signal,
                                                                              cv=self._utils.cv,
                                                                              n_max=self._params.n_max)
         else:
             self._utils.n_mae_score = None
-        self._utils.correction = f.find_length_correction(signal,self._params.max_correction, self._utils.cv)
-        self.spectrum = f.get_frequencies(signal=signal[self._utils.correction:-self._utils.cv-1])
-        self._utils.top_spectrum = f.correct_top_spectrum(signal, self._params.top_n, self._params.max_correction, self._utils.cv)
+
+        self._utils.correction_cut, self._utils.corrections = f.find_length_correction(signal=signal,
+                                                                                   max_correction=self._params.max_correction,
+                                                                                   cv=self._utils.cv)
+        self.spectrum = f.get_frequencies(signal=signal[self._utils.correction_cut:-self._utils.cv-1])[1:]
+        #self._utils.top_spectrum = f.correct_top_spectrum(signal=signal,
+        #                                                  top_n=self._params.top_n,
+        #                                                  max_correction=self._params.max_correction,
+        #                                                  cv=self._utils.cv)
 
         self.prepared_data = f.create_train_data(data=self._utils.time_series,
-                                                 spectrum=self._utils.top_spectrum,
+                                                 spectrum=self.spectrum,
                                                  top_n=self._params.top_n,
                                                  lags=self._params.lags,
                                                  lag_freq=self._params.lag_freq,

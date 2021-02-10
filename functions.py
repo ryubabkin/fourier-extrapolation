@@ -174,7 +174,7 @@ def find_length_correction(signal, max_correction, cv):
              'abs': np.real(max_unit['abs'])}
         result = result.append(r, ignore_index=True)
     optimal = int(result[result['abs'] == result['abs'].max()]['x'].min())
-    return optimal
+    return optimal, result
 
 
 def define_optimal_n(signal, cv, n_max=20):
@@ -197,7 +197,7 @@ def define_optimal_n(signal, cv, n_max=20):
 def correct_top_spectrum(signal, top_n, max_correction, cv):
     corrected_top_spectrum = DataFrame()
     for n in range(top_n):
-        correction_cut  = find_length_correction(signal=signal,
+        correction_cut, _ = find_length_correction(signal=signal,
                                                      max_correction=max_correction,
                                                      cv=cv)
 
@@ -296,7 +296,7 @@ def features_imp(df, target):
 def train_regression(data, cv):
     train = data.iloc[:-cv-1].reset_index(drop=True)
     test = data.iloc[-cv-1:].reset_index(drop=True)
-    regressor = LinearRegression().fit(train.drop(['dt', 'y'], axis=1),
+    regressor = RandomForestRegressor().fit(train.drop(['dt', 'y'], axis=1),
                                        train['y'])
     train['y_pred'] = regressor.predict(train.drop(['dt', 'y'], axis=1))
     test['y_pred'] = regressor.predict(test.drop(['dt', 'y'], axis=1))
