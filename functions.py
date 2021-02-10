@@ -5,6 +5,8 @@ import numpy as np
 from pandas import DataFrame, to_datetime, date_range, Timedelta, concat
 from scipy.signal import find_peaks, peak_widths
 from sklearn.linear_model import LinearRegression
+
+from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import r2_score
 
 warnings.filterwarnings("ignore")
@@ -161,10 +163,10 @@ def restore_signal(spectrum, array, top):
 # Optimization
 # %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %%
 
-def find_length_correction(signal, max_correction, top_n, cv):
+def find_length_correction(signal, max_correction, cv):
     result = DataFrame([])
     for x in range(1, max_correction, 1):
-        spectrum = get_frequencies(signal[:-x])
+        spectrum = get_frequencies(signal[x:-cv-1])
         max_unit = spectrum.iloc[spectrum['abs'].idxmax()]
         r = {'x': x,
              'freq': np.real(max_unit['freq']),
@@ -172,13 +174,11 @@ def find_length_correction(signal, max_correction, top_n, cv):
              'abs': np.real(max_unit['abs'])}
         result = result.append(r, ignore_index=True)
     optimal = int(result[result['abs'] == result['abs'].max()]['x'].min())
-    return optimal, result
+    return optimal
 
 
-def define_optimal_n(signal, cv=0.1, n_max=20):
-    if (cv >= 1) or (cv <= 0):
-        cv = 0.1
-    len_train = int(len(signal) * (1 - cv))
+def define_optimal_n(signal, cv, n_max=20):
+    len_train = len(signal) - cv
     array = np.arange(0, len(signal))
     spectrum = get_frequencies(signal[:len_train])
     result = DataFrame()
@@ -194,6 +194,22 @@ def define_optimal_n(signal, cv=0.1, n_max=20):
     optimal_n = result.iloc[result[result['n'] > 2]['mae_cv'].idxmin()]['n']
     return int(optimal_n), result
 
+def correct_top_spectrum(signal, top_n, max_correction, cv):
+    corrected_top_spectrum = DataFrame()
+    for n in range(top_n):
+        correction_cut  = find_length_correction(signal=signal,
+                                                     max_correction=max_correction,
+                                                     cv=cv)
+
+        spectrum = get_frequencies(signal=signal[correction_cut:-cv-1])
+        corrected_top_spectrum = concat([corrected_top_spectrum, spectrum[spectrum['peak']==1].sort_values('abs').tail(1)])
+        df = add_periodic_features(spectrum, signal.to_frame(), 1)
+        regressor = LinearRegression().fit(df.drop(['y'], axis=1)[:-cv-1],
+                                           df['y'][:-cv-1])
+        line = regressor.predict(df.drop(['y'], axis=1))
+        signal = signal - line
+    return corrected_top_spectrum
+
 
 # %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %%
 # Features
@@ -204,12 +220,12 @@ def add_periodic_features(spectrum, data, top):
     spectrum = spectrum[spectrum['peak'] == 1]
     spectrum = spectrum.sort_values('abs', ascending=False).head(int(top))
     i = 1
+
     for freq in spectrum['freq'].unique():
         data['freq' + str(i) + '_sin'] = np.sin(2 * np.pi * freq * array)
         data['freq' + str(i) + '_cos'] = np.cos(2 * np.pi * freq * array)
         i += 1
     return data
-
 
 def add_datetime_features(data):
     dt = data['dt'].dt
@@ -278,8 +294,8 @@ def features_imp(df, target):
 # %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %%
 
 def train_regression(data, cv):
-    train = data.iloc[:-int(len(data) * cv)].reset_index(drop=True)
-    test = data.iloc[-int(len(data) * cv):].reset_index(drop=True)
+    train = data.iloc[:-cv-1].reset_index(drop=True)
+    test = data.iloc[-cv-1:].reset_index(drop=True)
     regressor = LinearRegression().fit(train.drop(['dt', 'y'], axis=1),
                                        train['y'])
     train['y_pred'] = regressor.predict(train.drop(['dt', 'y'], axis=1))

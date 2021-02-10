@@ -41,10 +41,14 @@ class PeriodicRegression(object):
                                 'lag_freq': lag_freq,
                                 'max_correction': max_correction,
                                 'fill_ranges': fill_ranges})
+
+        if (self._params.cv >= 1) or (self._params.cv < 0):
+            self._params.cv = 0.1
         self._utils = DotDict({})
         self.regressor = None
         self.spectrum = None
         self.scores = None
+        self.prepared_data = None
         self.__module__ = "PeriodicRegressionClass"
         return
 
@@ -60,6 +64,7 @@ class PeriodicRegression(object):
                                                              freq=self._params.time_step)
         self._utils.dt_start = time_series['dt'].min()
         self._utils.dt_end = time_series['dt'].max()
+        self._utils.cv = int(self._params.cv * len(time_series))
         self._utils.time_series, self._utils.missing = f.fill_missing(data=time_series,
                                                                       freq=self._utils.dt_freq,
                                                                       ranges=self._params.fill_ranges)
@@ -68,26 +73,23 @@ class PeriodicRegression(object):
 
         if self._params.top_n is None:
             self._params.top_n, self._utils.n_mae_score = f.define_optimal_n(signal=signal,
-                                                                             cv=self._params.cv,
+                                                                             cv=self._utils.cv,
                                                                              n_max=self._params.n_max)
         else:
             self._utils.n_mae_score = None
+        self._utils.correction = f.find_length_correction(signal,self._params.max_correction, self._utils.cv)
+        self.spectrum = f.get_frequencies(signal=signal[self._utils.correction:-self._utils.cv-1])
+        self._utils.top_spectrum = f.correct_top_spectrum(signal, self._params.top_n, self._params.max_correction, self._utils.cv)
 
-        self._utils.correction_cut, self._utils.corrections = f.find_length_correction(signal=signal,
-                                                                                       max_correction=self._params.max_correction,
-                                                                                       top_n=self._params.top_n,
-                                                                                       cv=self._params.cv)
-
-        self.spectrum = f.get_frequencies(signal=signal[:-self._utils.correction_cut])
         self.prepared_data = f.create_train_data(data=self._utils.time_series,
-                                                 spectrum=self.spectrum,
+                                                 spectrum=self._utils.top_spectrum,
                                                  top_n=self._params.top_n,
                                                  lags=self._params.lags,
                                                  lag_freq=self._params.lag_freq,
                                                  ).reset_index(drop=True)
 
         self.regressor, self.scores, self._utils.train_result = f.train_regression(data=self.prepared_data,
-                                                                                   cv=self._params.cv)
+                                                                                   cv=self._utils.cv)
 
     def predict(self, start, end):
         prediction = f.create_predict_data(data=self._utils.time_series,
