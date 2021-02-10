@@ -4,8 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from pandas import DataFrame, to_datetime, date_range, Timedelta, concat
 from scipy.signal import find_peaks, peak_widths
-from sklearn.linear_model import LinearRegression
-
+from sklearn import linear_model
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import r2_score
 
@@ -296,10 +295,27 @@ def features_imp(df, target):
 # Training functions
 # %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %%
 
-def train_regression(data, cv):
+def train_regression(data, model, cv):
     train = data.iloc[:-cv - 1].reset_index(drop=True)
     test = data.iloc[-cv - 1:].reset_index(drop=True)
-    regressor = RandomForestRegressor().fit(train.drop(['dt', 'y'], axis=1),
+    if model == 'huber':
+        regressor = linear_model.HuberRegressor()
+    elif model == 'ransac':
+        regressor = linear_model.RANSACRegressor()
+    elif model == 'theil-sen':
+        regressor = linear_model.TheilSenRegressor()
+    elif model =='ridge':
+        regressor = linear_model.Ridge()
+    elif model=='lasso':
+        regressor = linear_model.Lasso()
+    elif model =='elastic':
+        regressor= linear_model.ElasticNet()
+    elif model =='bayesian':
+        regressor = linear_model.BayesianRidge()
+    else:
+        regressor =linear_model.LinearRegression()
+
+    regressor.fit(train.drop(['dt', 'y'], axis=1),
                                             train['y'])
     train['y_pred'] = regressor.predict(train.drop(['dt', 'y'], axis=1))
     test['y_pred'] = regressor.predict(test.drop(['dt', 'y'], axis=1))

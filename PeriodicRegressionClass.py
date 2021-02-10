@@ -52,9 +52,10 @@ class PeriodicRegression(object):
         self.__module__ = "PeriodicRegressionClass"
         return
 
-    def fit(self, data,
-            date_format="%Y-%m-%d %H:%M:%S",
-            ):
+    def fit(self, data, model='linear', date_format="%Y-%m-%d %H:%M:%S"):
+        """
+        models: 'linear', 'huber', 'ransac', 'theil-sen', 'ridge', 'lasso','elastic', 'bayesian'
+        """
         if self._params.max_correction is None:
             self._params.max_correction = int(len(data) * 0.1)
 
@@ -68,8 +69,9 @@ class PeriodicRegression(object):
         self._utils.time_series, self._utils.missing = f.fill_missing(data=time_series,
                                                                       freq=self._utils.dt_freq,
                                                                       ranges=self._params.fill_ranges)
-        signal = self._utils.time_series['y']
-        self._utils.trend, self._utils.polyvals = f.get_trend(signal)
+
+        self._utils.trend, self._utils.polyvals = f.get_trend(self._utils.time_series['y'])
+        signal = self._utils.time_series['y'] - self._utils.trend
         if self._params.top_n is None:
             self._params.top_n, self._utils.n_mae_score = f.define_optimal_n(signal=signal,
                                                                              cv=self._utils.cv,
@@ -94,7 +96,8 @@ class PeriodicRegression(object):
                                                  ).reset_index(drop=True)
 
         self.regressor, self.scores, self._utils.train_result = f.train_regression(data=self.prepared_data,
-                                                                                   cv=self._utils.cv)
+                                                                                   cv=self._utils.cv,
+                                                                                   model = model)
 
     def predict(self, start, end):
         prediction = f.create_predict_data(data=self._utils.time_series,
