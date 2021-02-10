@@ -166,7 +166,7 @@ def restore_signal(spectrum, array, top):
 def find_length_correction(signal, max_correction, cv):
     result = DataFrame([])
     for x in range(1, max_correction, 1):
-        spectrum = get_frequencies(signal[x:-cv-1])
+        spectrum = get_frequencies(signal[x:-cv - 1])
         max_unit = spectrum.iloc[spectrum['abs'].idxmax()]
         r = {'x': x,
              'freq': np.real(max_unit['freq']),
@@ -194,18 +194,20 @@ def define_optimal_n(signal, cv, n_max=20):
     optimal_n = result.iloc[result[result['n'] > 2]['mae_cv'].idxmin()]['n']
     return int(optimal_n), result
 
+
 def correct_top_spectrum(signal, top_n, max_correction, cv):
     corrected_top_spectrum = DataFrame()
     for n in range(top_n):
         correction_cut, _ = find_length_correction(signal=signal,
-                                                     max_correction=max_correction,
-                                                     cv=cv)
+                                                   max_correction=max_correction,
+                                                   cv=cv)
 
-        spectrum = get_frequencies(signal=signal[correction_cut:-cv-1])
-        corrected_top_spectrum = concat([corrected_top_spectrum, spectrum[spectrum['peak']==1].sort_values('abs').tail(1)])
+        spectrum = get_frequencies(signal=signal[correction_cut:-cv - 1])
+        corrected_top_spectrum = concat(
+            [corrected_top_spectrum, spectrum[spectrum['peak'] == 1].sort_values('abs').tail(1)])
         df = add_periodic_features(spectrum, signal.to_frame(), 1)
-        regressor = LinearRegression().fit(df.drop(['y'], axis=1)[:-cv-1],
-                                           df['y'][:-cv-1])
+        regressor = LinearRegression().fit(df.drop(['y'], axis=1)[:-cv - 1],
+                                           df['y'][:-cv - 1])
         line = regressor.predict(df.drop(['y'], axis=1))
         signal = signal - line
     return corrected_top_spectrum
@@ -226,6 +228,7 @@ def add_periodic_features(spectrum, data, top):
         data['freq' + str(i) + '_cos'] = np.cos(2 * np.pi * freq * array)
         i += 1
     return data
+
 
 def add_datetime_features(data):
     dt = data['dt'].dt
@@ -286,7 +289,7 @@ def features_imp(df, target):
     S = FI[FI['feature'].isin(['RAND_bin', 'RAND_int', 'RAND_uniform'])]['value'].std()
     threshold = M + S
     FI['important'] = np.where(FI['value'] > threshold, True, False)
-    return (FI)
+    return FI
 
 
 # %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %%
@@ -294,10 +297,10 @@ def features_imp(df, target):
 # %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %% %%
 
 def train_regression(data, cv):
-    train = data.iloc[:-cv-1].reset_index(drop=True)
-    test = data.iloc[-cv-1:].reset_index(drop=True)
+    train = data.iloc[:-cv - 1].reset_index(drop=True)
+    test = data.iloc[-cv - 1:].reset_index(drop=True)
     regressor = RandomForestRegressor().fit(train.drop(['dt', 'y'], axis=1),
-                                       train['y'])
+                                            train['y'])
     train['y_pred'] = regressor.predict(train.drop(['dt', 'y'], axis=1))
     test['y_pred'] = regressor.predict(test.drop(['dt', 'y'], axis=1))
     scores = result_scores(train['y'].values, test['y'].values,

@@ -78,10 +78,10 @@ class PeriodicRegression(object):
             self._utils.n_mae_score = None
 
         self._utils.correction_cut, self._utils.corrections = f.find_length_correction(signal=signal,
-                                                                                   max_correction=self._params.max_correction,
-                                                                                   cv=self._utils.cv)
-        self.spectrum = f.get_frequencies(signal=signal[self._utils.correction_cut:-self._utils.cv-1])[1:]
-        #self._utils.top_spectrum = f.correct_top_spectrum(signal=signal,
+                                                                                       max_correction=self._params.max_correction,
+                                                                                       cv=self._utils.cv)
+        self.spectrum = f.get_frequencies(signal=signal[self._utils.correction_cut:-self._utils.cv - 1])[1:]
+        # self._utils.top_spectrum = f.correct_top_spectrum(signal=signal,
         #                                                  top_n=self._params.top_n,
         #                                                  max_correction=self._params.max_correction,
         #                                                  cv=self._utils.cv)
